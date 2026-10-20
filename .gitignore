@@ -10,3 +10,9 @@ __pycache__/
 .venv/
 .boltz/
 keys/
+nim_cache.json
+msa.a3m
+mols.tar
+boltz2_conf.ckpt
+boltz2_aff.ckpt
+results/**/*.state
