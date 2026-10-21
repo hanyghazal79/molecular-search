@@ -1,0 +1,3 @@
+checkpoint,case,checkpoint_strategy,seed,n_probes,n_unique_scored,n_selected,pairs_charged,best_probe_score,mean_top_k_probe,best_per_pair,best_final_score,validation_valid,final_valid,div_mean_sim,div_max_sim
+random-s42.json,synthetic-demo,random,42,20,20,5,20,6.692125000000001,6.6104270833333345,0.33460625000000005,6.692125000000001,True,True,0.20091295375793855,0.3191489361702128
+ei-s42.json,synthetic-demo,ei,42,20,20,5,20,6.692125000000001,6.6104270833333345,0.33460625000000005,6.692125000000001,True,True,0.20091295375793855,0.3191489361702128
