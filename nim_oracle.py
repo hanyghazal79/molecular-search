@@ -1,15 +1,4 @@
-"""NVIDIA NIM Boltz-2 oracle with disk cache and rate limiting.
-
-Resolves product IDs to SMILES via chemistry.Library, calls the hosted
-Boltz-2 endpoint with predict_affinity=True, returns pIC50 (higher = stronger).
-
-Free tier: 40 RPM, 10,000 requests/day. Spacing enforced at 1.6 s.
-
-Requires:
-    pip install requests
-    export NVIDIA_API_KEY="nvapi-..."
-"""
-
+"""NVIDIA NIM Boltz-2 oracle with disk cache and rate limiting."""
 import hashlib
 import json
 import math
@@ -20,16 +9,14 @@ from pathlib import Path
 
 ENDPOINT = "https://health.api.nvidia.com/v1/biology/mit/boltz2/predict"
 
-
 class NimError(RuntimeError):
     pass
-
 
 class NimOracle:
     def __init__(self, api_key, library, target_sequence,
                  cache_path="nim_cache.json", msa_path=None,
                  sampling_steps=200, diffusion_samples=5,
-                 requests_per_minute=40, timeout=600):
+                 requests_per_minute=25, timeout=600): # <-- Changed to 25 RPM
         self.api_key = api_key
         self.library = library
         self.target_sequence = target_sequence
@@ -61,7 +48,6 @@ class NimOracle:
         self._last_call = time.monotonic()
 
     def score(self, product_ids):
-        """Return {product_id: pIC50 or NaN}."""
         results = {}
         for pid in product_ids:
             smiles = self.library.resolve(pid)
@@ -99,15 +85,22 @@ class NimOracle:
             ENDPOINT, data=json.dumps(payload).encode(), method="POST",
             headers={"Authorization": f"Bearer {self.api_key}",
                      "Content-Type": "application/json"})
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                body = json.load(resp)
-        except urllib.error.HTTPError as exc:
-            raise NimError(f"HTTP {exc.code}: {exc.read(512).decode(errors='replace')}") from None
-        except (urllib.error.URLError, OSError) as exc:
-            raise NimError(f"request failed: {exc}") from None
-
-        try:
-            return float(body["affinities"]["LIG"]["affinity_pic50"][0])
-        except (KeyError, IndexError, TypeError, ValueError):
-            return float("nan")
+        
+        for attempt in range(3):
+            try:
+                with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                    body = json.load(resp)
+                    return float(body["affinities"]["LIG"]["affinity_pic50"][0])
+            except urllib.error.HTTPError as exc:
+                if exc.code == 429:
+                    print(f"  Rate limited (429). Sleeping 10s before retry {attempt+1}/3...")
+                    time.sleep(10)
+                    continue
+                raise NimError(f"HTTP {exc.code}: {exc.read(512).decode(errors='replace')}") from None
+            except (urllib.error.URLError, OSError) as exc:
+                raise NimError(f"request failed: {exc}") from None
+            except (KeyError, IndexError, TypeError, ValueError):
+                return float("nan")
+                
+        print("  Failed after 3 retries due to rate limiting.")
+        return float("nan")

@@ -1,13 +1,3 @@
-"""Surrogate-guided search using NVIDIA NIM Boltz-2 as the oracle.
-
-Budget is counted in NIM oracle calls (one per probe). Local validation is free.
-
-Requires:
-    pip install requests rdkit==2024.9.4 scikit-learn scipy
-    export NVIDIA_API_KEY="nvapi-..."
-"""
-
-import argparse
 import csv
 import json
 import math
@@ -17,73 +7,70 @@ import time
 from pathlib import Path
 
 import numpy as np
-from rdkit import Chem, DataStructs
+from rdkit import Chem, DataStructs, RDLogger
 from rdkit.Chem import AllChem
 from scipy.stats import norm
 from sklearn.ensemble import RandomForestRegressor
 
+RDLogger.DisableLog('rdApp.*')
 from chemistry import Library
 from local_eval import validate_set, final_set
 from nim_oracle import NimOracle
 
+_MORGAN_GEN = AllChem.GetMorganGenerator(radius=2, fpSize=2048)
 
 def _load_pool(path):
+    pids, smiles_map = [], {}
     with open(path, newline="") as stream:
-        return [row["product_id"] for row in csv.DictReader(stream) if row.get("product_id")]
+        for row in csv.DictReader(stream):
+            pid = row.get("product_id")
+            smi = row.get("smiles")
+            if pid and smi:
+                pids.append(pid)
+                smiles_map[pid] = smi
+    return pids, smiles_map
 
-
-def _fp_matrix(pids, library):
-    X = np.zeros((len(pids), 2048), dtype=np.float32)
-    for i, pid in enumerate(pids):
-        smi = library.resolve(pid)
-        if smi is None:
-            continue
-        mol = Chem.MolFromSmiles(smi)
-        if mol is None:
-            continue
-        DataStructs.ConvertToNumpyArray(
-            AllChem.GetMorganFingerprintAsBitVect(mol, 2, 2048), X[i])
-    return X
-
-
-def _maxmin(pids, k, library):
+def _maxmin(pids, k, fps_cache):
     if len(pids) <= k:
         return pids[:k]
-    fps, valid = {}, []
-    for pid in pids:
-        smi = library.resolve(pid)
-        if smi is None:
-            continue
-        mol = Chem.MolFromSmiles(smi)
-        if mol is None:
-            continue
-        fps[pid] = AllChem.GetMorganFingerprintAsBitVect(mol, 2, 2048)
-        valid.append(pid)
+    valid = [pid for pid in pids if pid in fps_cache]
     if len(valid) <= k:
         return valid
     chosen, remaining = [valid[0]], valid[1:]
     while len(chosen) < k and remaining:
         best, best_sim = None, 2.0
         for pid in remaining:
-            sim = max(DataStructs.TanimotoSimilarity(fps[pid], fps[c]) for c in chosen)
+            sim = max(DataStructs.TanimotoSimilarity(fps_cache[pid], fps_cache[c]) for c in chosen)
             if sim < best_sim:
                 best, best_sim = pid, sim
         chosen.append(best); remaining.remove(best)
     return chosen
 
-
-def _select_batch(state, remaining, library, batch_size):
+def _select_batch(state, remaining, batch_size, fps_cache):
     strategy, scored = state["strategy"], state["scored"]
     if strategy == "random" or len(scored) < 2 * batch_size:
         rng = random.Random(state["seed"] + len(scored))
-        return rng.sample(remaining, min(batch_size, len(remaining)))
+        sample_size = min(len(remaining), batch_size * 10)
+        shortlist = rng.sample(remaining, sample_size)
+        return _maxmin(shortlist, batch_size, fps_cache)
 
-    pids = [p for p, _ in scored]
-    y = np.array([s for _, s in scored], dtype=np.float64)
+    pids = [p for p, _ in scored if p in fps_cache]
+    y = np.array([s for p, s in scored if p in fps_cache], dtype=np.float64)
+    
+    X_train = np.zeros((len(pids), 2048), dtype=np.float32)
+    for i, pid in enumerate(pids):
+        DataStructs.ConvertToNumpyArray(fps_cache[pid], X_train[i])
+        
     rf = RandomForestRegressor(n_estimators=100, min_samples_leaf=2,
-                               random_state=state["seed"], n_jobs=-1).fit(
-        _fp_matrix(pids, library), y)
-    X_rem = _fp_matrix(remaining, library)
+                               random_state=state["seed"], n_jobs=-1).fit(X_train, y)
+    
+    X_rem = np.zeros((len(remaining), 2048), dtype=np.float32)
+    valid_rem = []
+    for i, pid in enumerate(remaining):
+        if pid in fps_cache:
+            DataStructs.ConvertToNumpyArray(fps_cache[pid], X_rem[i])
+            valid_rem.append(pid)
+            
     preds = np.array([t.predict(X_rem) for t in rf.estimators_])
     mu, sigma = preds.mean(axis=0), preds.std(axis=0) + 1e-9
 
@@ -96,62 +83,65 @@ def _select_batch(state, remaining, library, batch_size):
         z = (mu - best) / sigma
         acq = (mu - best) * norm.cdf(z) + sigma * norm.pdf(z)
 
-    ranked = [remaining[i] for i in np.argsort(-acq)]
-    return _maxmin(ranked[:max(50, batch_size * 10)], batch_size, library)
-
+    ranked = [valid_rem[i] for i in np.argsort(-acq)]
+    shortlist = ranked[:max(50, batch_size * 10)]
+    return _maxmin(shortlist, batch_size, fps_cache)
 
 def _state_path(output, strategy, seed):
     return Path(str(output) + f".{strategy}.s{seed}.state")
 
-
 def _save(path, state):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(state, indent=2))
     tmp.replace(path)
 
+def run(library_dir, pool_path, target_sequence, strategy="ei", seed=42, probes=24,
+        batch_size=4, required=3, max_sim=0.6, msa=None, cache="nim_cache.json",
+        output="search-nim.json", resume=False):
+    output = Path(output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    state_path = _state_path(output, strategy, seed)
 
-def run(args):
-    output = Path(args.output)
-    state_path = _state_path(output, args.strategy, args.seed)
+    if resume and not state_path.exists():
+        raise SystemExit(f"--resume requested but {state_path} does not exist.")
 
-    if args.resume and not state_path.exists():
-        raise SystemExit(
-            f"--resume requested but {state_path} does not exist. "
-            f"Check --strategy={args.strategy} and --seed={args.seed} "
-            f"match the original run.")
-
-    with Library(args.library) as library:
+    with Library(library_dir) as library:
         if state_path.exists():
             state = json.loads(state_path.read_text())
-            mismatches = []
-            for k, arg in [("strategy", args.strategy), ("seed", args.seed),
-                           ("batch_size", args.batch_size),
-                           ("probes_planned", args.probes)]:
-                if k in state and state[k] != arg:
-                    mismatches.append(f"{k}: state={state[k]} arg={arg}")
-            if mismatches:
-                raise SystemExit(f"Cannot resume: {mismatches}")
-            print(f"Resuming {state_path}: {len(state['scored'])} scored, "
-                  f"{len(state.get('attempted', []))} attempted")
+            print(f"Resuming {state_path}: {len(state['scored'])} scored")
         else:
             if output.exists():
                 raise SystemExit(f"{output} exists; use --resume or a new --output")
-            pids = _load_pool(args.pool)
-            random.Random(args.seed).shuffle(pids)
+            pids, smiles_map = _load_pool(pool_path)
+            random.Random(seed).shuffle(pids)
             state = {
-                "seed": args.seed, "strategy": args.strategy,
-                "batch_size": args.batch_size, "probes_planned": args.probes,
-                "max_sim": args.max_sim, "target_sequence": args.target_sequence,
+                "seed": seed, "strategy": strategy,
+                "batch_size": batch_size, "probes_planned": probes,
+                "max_sim": max_sim, "target_sequence": target_sequence,
                 "pool": pids, "scored": [], "attempted": [],
+                "smiles_map": smiles_map,
                 "selected": None, "validation": None, "final": None,
                 "history": [], "elapsed": 0.0,
             }
             _save(state_path, state)
 
+        print("Precomputing fingerprints...")
+        fps_cache = {}
+        smiles_map = state.get("smiles_map", {})
+        for pid in state["pool"]:
+            smi = smiles_map.get(pid)
+            if smi:
+                mol = Chem.MolFromSmiles(smi)
+                if mol:
+                    fps_cache[pid] = _MORGAN_GEN.GetFingerprint(mol)
+        print(f"Cached {len(fps_cache)} fingerprints.")
+
         oracle = NimOracle(
             api_key=os.environ["NVIDIA_API_KEY"], library=library,
             target_sequence=state["target_sequence"],
-            cache_path=args.cache, msa_path=args.msa)
+            cache_path=cache, msa_path=msa)
 
         attempted = set(state.get("attempted", []))
         remaining = [p for p in state["pool"] if p not in attempted]
@@ -160,7 +150,7 @@ def run(args):
         previous = state.get("elapsed", 0.0)
 
         while len(state["scored"]) < state["probes_planned"] and remaining:
-            batch = [p for p in _select_batch(state, remaining, library, state["batch_size"])
+            batch = [p for p in _select_batch(state, remaining, state["batch_size"], fps_cache)
                      if p not in attempted]
             if not batch:
                 break
@@ -183,17 +173,38 @@ def run(args):
 
         if state["selected"] is None:
             state["scored"].sort(key=lambda x: -x[1])
-            state["selected"] = [p for p, _ in state["scored"][:args.required]]
+            scored_pids = [p for p, _ in state["scored"]]
+            selected = []
+            for pid in scored_pids:
+                if pid not in fps_cache:
+                    continue
+                fp = fps_cache[pid]
+                is_diverse = True
+                for s in selected:
+                    if DataStructs.TanimotoSimilarity(fp, fps_cache[s]) > max_sim:
+                        is_diverse = False
+                        break
+                if is_diverse:
+                    selected.append(pid)
+                    if len(selected) == required:
+                        break
+            if len(selected) < required:
+                for pid in scored_pids:
+                    if pid not in selected:
+                        selected.append(pid)
+                        if len(selected) == required:
+                            break
+            state["selected"] = selected
             _save(state_path, state)
 
-        ok, reasons, _ = validate_set(state["selected"], library, args.max_sim)
+        ok, reasons, _ = validate_set(state["selected"], library, max_sim)
         state["validation"] = {"valid": ok, "reasons": reasons}
         _save(state_path, state)
         if not ok:
             print("Validation failed:", reasons)
             return 1
 
-        state["final"] = final_set(state["selected"], library, oracle, args.max_sim)
+        state["final"] = final_set(state["selected"], library, oracle, max_sim)
         _save(state_path, state)
         output.write_text(json.dumps(state, indent=2))
 
@@ -202,24 +213,12 @@ def run(args):
               f"selected={len(state['selected'])} → {output}")
         return 0
 
-
-def main(argv=None):
-    p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--library", required=True)
-    p.add_argument("--pool", required=True)
-    p.add_argument("--target-sequence", required=True)
-    p.add_argument("--strategy", choices=["random", "greedy", "ucb", "ei"], default="ei")
-    p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--probes", type=int, default=24)
-    p.add_argument("--batch-size", type=int, default=4)
-    p.add_argument("--required", type=int, default=3)
-    p.add_argument("--max-sim", type=float, default=0.6)
-    p.add_argument("--msa")
-    p.add_argument("--cache", default="nim_cache.json")
-    p.add_argument("--output", default="search-nim.json")
-    p.add_argument("--resume", action="store_true")
-    return run(p.parse_args(argv))
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+def search_main(library_dir, pool_path, target_sequence, strategy="ei", seed=42, probes=24,
+         batch_size=4, required=3, max_sim=0.6, msa=None, cache="nim_cache.json",
+         output="search-nim.json", resume=False):
+    return run(
+        library_dir=library_dir, pool_path=pool_path, target_sequence=target_sequence,
+        strategy=strategy, seed=seed, probes=probes, batch_size=batch_size,
+        required=required, max_sim=max_sim, msa=msa, cache=cache,
+        output=output, resume=resume
+    )

@@ -4,8 +4,7 @@ Handles both schemas:
 - baseline.py / search.py: state["probes"] = [{result:{items:[{product,score}], backend}}]
 - search_nim.py: state["scored"] = [[product, score], ...]
 """
-
-import argparse
+import os
 import csv
 import json
 import sys
@@ -121,16 +120,11 @@ def load_fps(pool_path):
     return fps
 
 
-def main():
-    p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("checkpoints", nargs="+")
-    p.add_argument("--pool")
-    p.add_argument("--csv-out")
-    args = p.parse_args()
-
-    fps = load_fps(args.pool) if args.pool else None
+def main(checkpoints, pool=None, csv_out=None):
+    """Core logic with parametrized signatures."""
+    fps = load_fps(pool) if pool else None
     rows = []
-    for path in args.checkpoints:
+    for path in checkpoints:
         try:
             state = json.loads(Path(path).read_text())
         except (OSError, json.JSONDecodeError) as exc:
@@ -151,13 +145,21 @@ def main():
     for row in rows:
         print("\t".join(str(row.get(c, "")) for c in columns))
 
-    if args.csv_out:
-        with open(args.csv_out, "w", newline="") as stream:
+    if csv_out:
+        with open(csv_out, "w", newline="") as stream:
             w = csv.DictWriter(stream, fieldnames=columns, extrasaction="ignore")
             w.writeheader(); w.writerows(rows)
-        print(f"\nSaved {args.csv_out}", file=sys.stderr)
+        print(f"\nSaved {csv_out}", file=sys.stderr)
     return 0
 
+RESULTS_DIR = "/kaggle/working/results"
+POOL_PATH = "pool.csv"
+CSV_OUT = f"{RESULTS_DIR}/phase2-seeds.csv"
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+result_files = [
+    os.path.join(RESULTS_DIR, f) 
+    for f in os.listdir(RESULTS_DIR) 
+    if f.endswith(".json") and f.startswith("search-")
+]
+
+# metrics_main(result_files, pool=POOL_PATH, csv_out=CSV_OUT)

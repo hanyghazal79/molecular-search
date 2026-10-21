@@ -1,17 +1,12 @@
 """Local validate/final for offline NIM runs.
 
-Mirrors the owner's set-level semantics using only the frozen library:
-- Every product_id must resolve to a SMILES that passes library filters.
-- No pair may exceed max_tanimoto.
-- required_count must be met.
-
-NOT the owner's service. Cannot establish historical novelty against newer
-data or the service's internal entropy gates.
+Mirrors the owner's set-level semantics using only the frozen library.
+NOT the owner's service.
 """
 
 import math
-
-from rdkit import Chem, DataStructs
+from rdkit import Chem, DataStructs, RDLogger
+RDLogger.DisableLog('rdApp.*')
 from rdkit.Chem import AllChem
 
 from chemistry import passes_filters
@@ -19,7 +14,7 @@ from chemistry import passes_filters
 
 def _fp(smiles):
     mol = Chem.MolFromSmiles(smiles)
-    return AllChem.GetMorganFingerprintAsBitVect(mol, 2, 2048) if mol else None
+    return AllChem.GetMorganGenerator(radius=2, fpSize=2048).GetFingerprint(mol) if mol else None
 
 
 def validate_set(product_ids, library, max_tanimoto=0.8):
