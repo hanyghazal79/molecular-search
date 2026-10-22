@@ -1,0 +1,7 @@
+,best_per_pair,best_per_pair,best_per_pair,best_probe_score,final_valid
+,mean,std,count,mean,<lambda>
+checkpoint_strategy,,,,,
+ei,0.07,0.017,5,8.072,5
+greedy,0.081,,1,8.108,1
+random,0.064,0.015,5,7.602,5
+ucb,0.075,,1,7.502,1
