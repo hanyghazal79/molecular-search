@@ -153,7 +153,7 @@ def main(checkpoints, pool=None, csv_out=None):
     return 0
 
 RESULTS_DIR = "/kaggle/working/results"
-POOL_PATH = "pool.csv"
+POOL_PATH = "pool_100.csv"
 CSV_OUT = f"{RESULTS_DIR}/phase2-seeds.csv"
 
 result_files = [

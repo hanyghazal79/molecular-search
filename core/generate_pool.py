@@ -1,7 +1,11 @@
 """Generate a candidate pool from a frozen chemistry library (dynamic size)."""
+
 import csv
 import itertools
 import random
+
+from rdkit import RDLogger
+RDLogger.DisableLog('rdApp.*')     # <-- add these 2 lines
 
 from rdkit import Chem
 from chemistry import Library, passes_filters
@@ -58,7 +62,7 @@ def generate(library, count, attempts, seed):
     
     return accepted, len(combos)
 
-def main(library_dir="synthetic-library", reaction="rxn:1", count=100, attempts=500, seed=42, output="pool.csv"):
+def main(library_dir="synthetic-library", reaction="rxn:1", count=100000, attempts=500, seed=42, output="pool_100k.csv"):
     if count < 1 or attempts < 1:
         raise ValueError("count and attempts must be positive")
     try:
