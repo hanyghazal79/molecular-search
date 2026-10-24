@@ -16,3 +16,5 @@ mols.tar
 boltz2_conf.ckpt
 boltz2_aff.ckpt
 results/**/*.state
+
+04_sota_experiments/rl_workspace/tb_0

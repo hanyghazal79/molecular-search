@@ -1,0 +1,13 @@
+{
+  "method": "reinforce_rl",
+  "seed": 42,
+  "n_generated": 200,
+  "n_valid": 200,
+  "n_scored": 0,
+  "selected": [],
+  "scores": {
+    "": NaN
+  },
+  "best_score": NaN,
+  "avg_reward_final": NaN
+}

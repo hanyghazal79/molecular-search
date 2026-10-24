@@ -1,19 +1,7 @@
-"""SOTA Experiment 3: Multi-Objective Bayesian Optimization.
+"""SOTA Experiment 3: Multi-Objective BO (subsampled Pareto).
 
-Optimizes 3 objectives simultaneously:
-  - pIC50 (maximize, predicted by RF ensemble)
-  - Negative SA score (maximize, so easier to synthesize)
-  - Novelty (maximize, Tanimoto distance to closest molecule in history)
-
-Finds the Pareto front of trade-offs and selects a diverse final batch.
-
-Usage:
-    python 04_sota_experiments/search_mobo.py \\
-        --library synthetic-library-100k \\
-        --pool pool-100k.csv \\
-        --target-sequence "PQITL..." \\
-        --probes 100 --seed 42 \\
-        --output 04_sota_experiments/results/mobo/run-s42.json
+Optimizes pIC50, -SA, novelty. Pareto-ranks only the top-N by predicted
+pIC50, then MaxMin-selects a batch — O(N²) on N=2000 instead of O(100000²).
 """
 
 import argparse
@@ -25,13 +13,13 @@ import random
 from pathlib import Path
 
 import numpy as np
-from rdkit import Chem, DataStructs
+from rdkit import Chem, DataStructs, RDLogger
 from rdkit.Chem import AllChem
 from sklearn.ensemble import RandomForestRegressor
 
-from sota_utils import (
-    set_seed, morgan_np, sa_score, pareto_rank,
-)
+RDLogger.DisableLog('rdApp.*')
+
+from sota_utils import set_seed, morgan_np, sa_score, pareto_rank
 from chemistry import Library
 from nim_oracle import NimOracle
 from local_eval import validate_set, final_set
@@ -39,16 +27,9 @@ from local_eval import validate_set, final_set
 _MORGAN = AllChem.GetMorganGenerator(radius=2, fpSize=2048)
 
 
-# ---------------------------------------------------------------------------
-# Objectives
-# ---------------------------------------------------------------------------
-
-def compute_objectives(pids, smiles_map, library, history_fps=None):
-    """Compute (pIC50, -SA, novelty) for each molecule. Returns arrays + valid pids."""
-    n = len(pids)
-    scores, sas, novelties = [], [], []
-    valid_pids, valid_smiles = [], []
-
+def compute_objectives_for_subset(pids, smiles_map, library, history_fps):
+    """Compute (SA, novelty) only for the given subset. Returns (pids, sa_arr, nov_arr)."""
+    valid_pids, sas, novs = [], [], []
     for pid in pids:
         smi = smiles_map.get(pid) or library.resolve(pid)
         if not smi:
@@ -64,11 +45,9 @@ def compute_objectives(pids, smiles_map, library, history_fps=None):
         else:
             novelty = 1.0
         valid_pids.append(pid)
-        valid_smiles.append(smi)
-        sas.append(-sa)  # maximize negative SA = minimize SA
-        novelties.append(novelty)
-
-    return valid_pids, np.array(sas), np.array(novelties)
+        sas.append(-sa)
+        novs.append(novelty)
+    return valid_pids, np.array(sas, dtype=np.float32), np.array(novs, dtype=np.float32)
 
 
 def maxmin_pick(pids, k, library):
@@ -98,13 +77,10 @@ def maxmin_pick(pids, k, library):
     return chosen
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
-
 def run(library_dir, pool_path, target_sequence, seed=42, probes=100, batch_size=10,
         required=20, max_sim=0.6, history_path=None, msa=None,
-        cache='nim_cache.json', output='mobo_result.json'):
+        cache='nim_cache.json', output='mobo_result.json',
+        pareto_subsample=2000):
     set_seed(seed)
     output = Path(output)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -119,22 +95,21 @@ def run(library_dir, pool_path, target_sequence, seed=42, probes=100, batch_size
                 smiles_map[row['product_id']] = row['smiles']
     random.Random(seed).shuffle(pids)
 
-    # Load history fingerprints (optional)
+    # Load history fingerprints once
     history_fps = []
     if history_path and Path(history_path).exists():
         import gzip
         try:
             with gzip.open(history_path, 'rt', encoding='utf-8') as f:
                 for i, row in enumerate(csv.DictReader(f)):
-                    if i >= 5000:
+                    if i >= 3000:            # was 5000, lowered for speed
                         break
-                    smi = row.get('smiles', '')
-                    mol = Chem.MolFromSmiles(smi)
+                    mol = Chem.MolFromSmiles(row.get('smiles', ''))
                     if mol:
                         history_fps.append(_MORGAN.GetFingerprint(mol))
-            print(f"Loaded {len(history_fps)} history fingerprints (sampled)")
+            print(f"Loaded {len(history_fps)} history fingerprints")
         except Exception as e:
-            print(f"History load failed: {e}, using novelty=1.0")
+            print(f"History load failed: {e}, novelty=1.0")
 
     with Library(library_dir) as library:
         if state_path.exists():
@@ -151,44 +126,46 @@ def run(library_dir, pool_path, target_sequence, seed=42, probes=100, batch_size
         remaining = [p for p in pids if p not in attempted]
 
         while len(state['scored']) < probes and remaining:
+            # --- Initial random batch ---
             if len(state['scored']) < 5:
                 rng = random.Random(seed + len(state['scored']))
                 batch = rng.sample(remaining, min(batch_size, len(remaining)))
             else:
-                # Train surrogate on scored molecules
+                # --- Predict pIC50 for the full remaining pool via RF ---
                 scored_pids = [p for p, _ in state['scored']]
                 y = np.array([s for _, s in state['scored']], dtype=np.float32)
-                X_train = []
-                for p in scored_pids:
-                    fp = morgan_np(smiles_map[p])
-                    if fp is not None:
-                        X_train.append(fp)
-                X_train = np.stack(X_train)
+                X_train = np.stack([morgan_np(smiles_map[p]) for p in scored_pids])
                 rf = RandomForestRegressor(n_estimators=100, random_state=seed,
                                            n_jobs=-1).fit(X_train, y)
 
-                # Predict on remaining + compute other objectives
-                valid_rem, sa_arr, nov_arr = compute_objectives(
-                    remaining, smiles_map, library, history_fps)
-                X_rem = []
-                for p in valid_rem:
-                    fp = morgan_np(smiles_map[p])
-                    X_rem.append(fp if fp is not None else np.zeros(2048, dtype=np.float32))
-                X_rem = np.stack(X_rem)
+                X_rem = np.stack([morgan_np(smiles_map[p]) for p in remaining])
+                mu_pIC50 = np.array([t.predict(X_rem) for t in rf.estimators_]).mean(axis=0)
 
-                preds = np.array([t.predict(X_rem) for t in rf.estimators_])
-                mu_pIC50 = preds.mean(axis=0)
+                # --- Subsample top-N by pIC50 before expensive Pareto ranking ---
+                n_sub = min(pareto_subsample, len(remaining))
+                top_idx = np.argsort(-mu_pIC50)[:n_sub]
+                sub_pids = [remaining[i] for i in top_idx]
 
-                # 3-objective Pareto ranking
-                objectives = np.stack([mu_pIC50, sa_arr, nov_arr], axis=1)
-                ranks = pareto_rank([row.tolist() for row in objectives])
+                # --- Compute SA + novelty only on the subsample ---
+                valid_pids, sa_arr, nov_arr = compute_objectives_for_subset(
+                    sub_pids, smiles_map, library, history_fps)
 
-                # Select from best front with diversity
-                front_0 = [valid_rem[i] for i in range(len(valid_rem)) if ranks[i] == 0]
-                if len(front_0) < batch_size:
-                    front_1 = [valid_rem[i] for i in range(len(valid_rem)) if ranks[i] == 1]
-                    front_0 += front_1
-                batch = maxmin_pick(front_0[:200], min(batch_size, len(front_0)), library)
+                if len(valid_pids) < batch_size:
+                    batch = sub_pids[:batch_size]
+                else:
+                    # Re-align mu to the valid subset
+                    valid_idx = [top_idx[sub_pids.index(p)] for p in valid_pids]
+                    mu_valid = mu_pIC50[valid_idx]
+
+                    # --- Pareto rank on the 2000-molecule subsample (fast) ---
+                    objectives = np.stack([mu_valid, sa_arr, nov_arr], axis=1)
+                    ranks = pareto_rank([row.tolist() for row in objectives])
+
+                    front_0 = [valid_pids[i] for i in range(len(valid_pids)) if ranks[i] == 0]
+                    if len(front_0) < batch_size:
+                        front_1 = [valid_pids[i] for i in range(len(valid_pids)) if ranks[i] == 1]
+                        front_0 += front_1
+                    batch = maxmin_pick(front_0[:200], min(batch_size, len(front_0)), library)
 
             batch = [p for p in batch if p not in attempted][:batch_size]
             if not batch:
@@ -208,19 +185,17 @@ def run(library_dir, pool_path, target_sequence, seed=42, probes=100, batch_size
             best = max(s for _, s in state['scored']) if state['scored'] else float('nan')
             print(f"  +{new} | {len(state['scored'])}/{probes} | best={best:.2f}")
 
-        # Final selection: Pareto front of actual scores
+        # Final selection
         if state['selected'] is None:
             scored_pids = [p for p, _ in state['scored']]
-            _, sa_f, nov_f = compute_objectives(scored_pids, smiles_map, library, history_fps)
+            _, sa_f, nov_f = compute_objectives_for_subset(scored_pids, smiles_map, library, history_fps)
             y = np.array([s for _, s in state['scored']], dtype=np.float32)
-            valid_scored = [(p, s) for (p, s) in state['scored']
-                            if p in set(smiles_map)]
-            if len(valid_scored) == len(sa_f):
+            if len(sa_f) == len(y):
                 objectives = np.stack([y, sa_f, nov_f], axis=1)
                 ranks = pareto_rank([row.tolist() for row in objectives])
-                front_pids = [valid_scored[i][0] for i in range(len(valid_scored)) if ranks[i] == 0]
+                front_pids = [scored_pids[i] for i in range(len(scored_pids)) if ranks[i] == 0]
                 if len(front_pids) < required:
-                    front_pids += [valid_scored[i][0] for i in range(len(valid_scored)) if ranks[i] == 1]
+                    front_pids += [scored_pids[i] for i in range(len(scored_pids)) if ranks[i] == 1]
                 state['selected'] = maxmin_pick(front_pids, required, library)
             else:
                 state['scored'].sort(key=lambda x: -x[1])
@@ -252,16 +227,18 @@ def main():
     p.add_argument('--batch-size', type=int, default=10)
     p.add_argument('--required', type=int, default=20)
     p.add_argument('--max-sim', type=float, default=0.6)
-    p.add_argument('--history', help='Path to molecules.csv.gz for novelty objective')
+    p.add_argument('--history')
     p.add_argument('--msa')
     p.add_argument('--cache', default='nim_cache.json')
     p.add_argument('--output', required=True)
+    p.add_argument('--pareto-subsample', type=int, default=2000)
     args = p.parse_args()
     return run(
         library_dir=args.library, pool_path=args.pool, target_sequence=args.target_sequence,
         seed=args.seed, probes=args.probes, batch_size=args.batch_size,
         required=args.required, max_sim=args.max_sim, history_path=args.history,
         msa=args.msa, cache=args.cache, output=args.output,
+        pareto_subsample=args.pareto_subsample,
     )
 
 
