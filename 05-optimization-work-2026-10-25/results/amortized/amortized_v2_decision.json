@@ -1,0 +1,9 @@
+{
+  "winner_name": "HistGB on fp+desc",
+  "delta_rho": 0.18159349712846629,
+  "delta_mae": 0.19208027931053923,
+  "verdict": "PROCEED",
+  "n_labels": 295,
+  "fp_dim": 2048,
+  "desc_dim": 217
+}

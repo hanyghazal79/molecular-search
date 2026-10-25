@@ -1,5 +1,6 @@
 import csv
 import json
+import hashlib
 import math
 import os
 import random
@@ -99,7 +100,7 @@ def _save(path, state):
 
 def run(library_dir, pool_path, target_sequence, strategy="ei", seed=42, probes=24,
         batch_size=4, required=3, max_sim=0.6, msa=None, cache="nim_cache.json",
-        output="search-nim.json", resume=False):
+        output="search-nim.json", resume=False, warm_start: bool = False):
     output = Path(output)
     output.parent.mkdir(parents=True, exist_ok=True)
     state_path = _state_path(output, strategy, seed)
@@ -125,6 +126,23 @@ def run(library_dir, pool_path, target_sequence, strategy="ei", seed=42, probes=
                 "selected": None, "validation": None, "final": None,
                 "history": [], "elapsed": 0.0,
             }
+            if warm_start:
+                cache_file = Path(cache)
+                cache_data = json.loads(cache_file.read_text()) if cache_file.exists() else {}
+                def _warm_key(smi):
+                    payload = f"{target_sequence}|{smi}|200|5"
+                    return hashlib.sha256(payload.encode()).hexdigest()[:20]
+                n_loaded = 0
+                for pid, smi in smiles_map.items():
+                    k = _warm_key(smi)
+                    if k in cache_data:
+                        v = cache_data[k]
+                        if isinstance(v, (int, float)) and np.isfinite(v):
+                            state["scored"].append((pid, float(v)))
+                            state["attempted"].append(pid)
+                            n_loaded += 1
+                state["warm_start_size"] = n_loaded
+                print(f"Warm-started with {n_loaded} cached labels")
             _save(state_path, state)
 
         print("Precomputing fingerprints...")
@@ -148,8 +166,9 @@ def run(library_dir, pool_path, target_sequence, strategy="ei", seed=42, probes=
 
         started = time.monotonic()
         previous = state.get("elapsed", 0.0)
+        initial_count = len(state["scored"])
 
-        while len(state["scored"]) < state["probes_planned"] and remaining:
+        while (len(state["scored"]) - initial_count) < state["probes_planned"] and remaining:
             batch = [p for p in _select_batch(state, remaining, state["batch_size"], fps_cache)
                      if p not in attempted]
             if not batch:
@@ -215,10 +234,10 @@ def run(library_dir, pool_path, target_sequence, strategy="ei", seed=42, probes=
 
 def search_main(library_dir, pool_path, target_sequence, strategy="ei", seed=42, probes=24,
          batch_size=4, required=3, max_sim=0.6, msa=None, cache="nim_cache.json",
-         output="search-nim.json", resume=False):
+         output="search-nim.json", resume=False, warm_start=False):
     return run(
         library_dir=library_dir, pool_path=pool_path, target_sequence=target_sequence,
         strategy=strategy, seed=seed, probes=probes, batch_size=batch_size,
         required=required, max_sim=max_sim, msa=msa, cache=cache,
-        output=output, resume=resume
+        output=output, resume=resume, warm_start=warm_start
     )

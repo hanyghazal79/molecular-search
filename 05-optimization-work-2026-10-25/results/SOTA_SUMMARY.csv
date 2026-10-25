@@ -1,0 +1,6 @@
+Method,Best pIC50,Mean pIC50,N selected,Oracle calls,Best per call,Diversity OK,Source
+Amortized,8.13,7.54,20,20,0.4067,True,final
+MOBO,8.11,7.18,20,100,0.0811,True,final
+RF+EI (baseline),8.05,7.7,20,200,0.0403,True,final
+GNN,8.04,6.53,20,100,0.0804,True,final
+REINVENT,7.18,6.34,20,200,0.0359,True,final
