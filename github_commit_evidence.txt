@@ -1,0 +1,379 @@
+Commit: 161319f317965e0139f617409a5008c80f30ac42
+Author: hanyghazal79
+Date: 2026-10-25 20:04:19 +0300
+Subject: Intermediary optimization..
+
+ 05-optimization-work-2026-10-25/AUDIT_OUTPUT.md    |     50 +
+ 05-optimization-work-2026-10-25/MANIFEST.json      |     87 +
+ 05-optimization-work-2026-10-25/README.md          |     78 +
+ .../caches/boltz2_direct_cache.json                |      1 +
+ .../models/surrogate_boltz2.joblib                 |    Bin 0 -> 2668117 bytes
+ .../results/SOTA_SUMMARY.csv                       |      6 +
+ .../results/amortized/amortized_v2_decision.json   |      9 +
+ .../results/amortized/run-s42-v2.json              |     61 +
+ .../results/gnn/ei-s42-fixed.json                  |    561 +
+ .../results/mobo/run-s42-v2.json                   |  10066 +
+ .../results/rf_ei/ei-s42-v2.json                   | 211098 ++++++++++++++++++
+ .../results/rf_ei/ei-s42.json                      | 201092 +++++++++++++++++
+ .../scripts/search_amortized_v2.py                 |    283 +
+ .../scripts/search_gnn.py                          |    347 +
+ .../scripts/search_mobo.py                         |    269 +
+ .../scripts}/search_nim.py                         |     27 +-
+ updated-core-for-sota_files.zip                    |    Bin 16015 -> 0 bytes
+ updated-core-for-sota_files/chemistry.py           |    392 -
+ updated-core-for-sota_files/generate_pool.py       |     90 -
+ updated-core-for-sota_files/local_eval.py          |     51 -
+ .../make_synthetic_library.py                      |     99 -
+ updated-core-for-sota_files/metrics.py             |    165 -
+ updated-core-for-sota_files/nim_oracle.py          |    139 -
+ 23 files changed, 424031 insertions(+), 940 deletions(-)
+
+Commit: 519687bd28887b95703cb68f209dfaa4cf8f6dff
+Author: hanyghazal79
+Date: 2026-10-24 20:40:39 +0300
+Subject: Done SOTA AI experiments - 1st Play..
+
+ core/generate_pool.py                              |   6 +-
+ core/metrics.py                                    |   2 +-
+ core/nim_oracle.py                                 |  39 +-
+ updated-core-for-sota_files.zip                    | Bin 0 -> 16015 bytes
+ updated-core-for-sota_files/chemistry.py           | 392 +++++++++++++++++++++
+ updated-core-for-sota_files/generate_pool.py       |  90 +++++
+ updated-core-for-sota_files/local_eval.py          |  51 +++
+ .../make_synthetic_library.py                      |  99 ++++++
+ updated-core-for-sota_files/metrics.py             | 165 +++++++++
+ updated-core-for-sota_files/nim_oracle.py          | 139 ++++++++
+ updated-core-for-sota_files/search_nim.py          | 224 ++++++++++++
+ 11 files changed, 1202 insertions(+), 5 deletions(-)
+
+Commit: c878d595cb76c689e66f8498639181771b52b751
+Author: hanyghazal79
+Date: 2026-10-24 20:38:39 +0300
+Subject: Done SOTA AI experiments - 1st Play..
+
+ .gitignore                                         |      2 +
+ 04_sota_experiments-[future-work]/README.md        |    230 -
+ .../requirements-sota.txt                          |      8 -
+ 04_sota_experiments-[future-work]/run.sh           |     44 -
+ 04_sota_experiments-[future-work]/search_rl.py     |    290 -
+ .../components/comp_boltz2_affinity.py             |    178 +
+ .../components/comp_sa_complement.py               |     38 +
+ 04_sota_experiments/results/SOTA_REPORT.md         |     73 +
+ 04_sota_experiments/results/SOTA_SUMMARY.csv       |      5 +
+ 04_sota_experiments/results/amortized/run-s42.json |     60 +
+ 04_sota_experiments/results/gnn/ei-s42.json        |    607 +
+ 04_sota_experiments/results/gnn/ei-s42.state.json  |    607 +
+ 04_sota_experiments/results/mobo/run-s42.json      |    588 +
+ .../results/mobo/run-s42.state.json                |    548 +
+ .../results/rl/reinvent-s42-100.json               |    566 +
+ 04_sota_experiments/results/rl/reinvent-s42.json   |   1066 +
+ 04_sota_experiments/results/rl/run-s42.json        |     13 +
+ .../rl_workspace/boltz2_direct_cache.json          |      1 +
+ 04_sota_experiments/rl_workspace/boltz2_rl_1.csv   |  25601 +++++
+ .../rl_workspace/priors/reinvent.v4.prior          |    Bin 0 -> 23527365 bytes
+ .../rl_workspace/reinforcement_learning.toml       |     46 +
+ 04_sota_experiments/rl_workspace/rl.log            |   2669 +
+ 04_sota_experiments/rl_workspace/rl_config.json    |    105 +
+ .../rl_workspace/surrogate_boltz2.joblib           |    Bin 0 -> 2668117 bytes
+ .../search_amortized.py                            |      2 +-
+ .../search_gnn.py                                  |      2 +-
+ .../search_mobo.py                                 |    139 +-
+ .../sota_utils.py                                  |      2 +-
+ molecular-search-sota.ipynb                        |      1 +
+ molecular-search.ipynb                             |      2 +-
+ pool-100k.csv                                      | 100001 ++++++++++++++++++
+ 31 files changed, 132837 insertions(+), 657 deletions(-)
+
+Commit: cc592bb94c530fcca080c601e8a7c3884d862c28
+Author: hanyghazal79
+Date: 2026-10-22 23:27:56 +0300
+Subject: Optimized experiment..
+
+ .../results-100/search-ei-s43.json                 |      0
+ .../results-100/search-ei-s43.json.ei.s43.state    |      0
+ .../results-100/search-ei-s44.json                 |      0
+ .../results-100/search-ei-s44.json.ei.s44.state    |      0
+ .../results-100/search-ei-s45.json                 |      0
+ .../results-100/search-ei-s45.json.ei.s45.state    |      0
+ .../results-100/search-ei-s46.json                 |      0
+ .../results-100/search-ei-s46.json.ei.s46.state    |      0
+ .../results-100/search-greedy-s42.json             |      0
+ .../search-greedy-s42.json.greedy.s42.state        |      0
+ .../results-100/search-random-s42.json             |      0
+ .../search-random-s42.json.random.s42.state        |      0
+ .../results-100/search-random-s43.json             |      0
+ .../search-random-s43.json.random.s43.state        |      0
+ .../results-100/search-random-s44.json             |      0
+ .../search-random-s44.json.random.s44.state        |      0
+ .../results-100/search-random-s45.json             |      0
+ .../search-random-s45.json.random.s45.state        |      0
+ .../results-100/search-random-s46.json             |      0
+ .../search-random-s46.json.random.s46.state        |      0
+ .../results-100/search-ucb-s42.json                |      0
+ .../results-100/search-ucb-s42.json.ucb.s42.state  |      0
+ .../kaggle/working/synthetic-library}/library.json |      2 +-
+ .../working/synthetic-library}/molecules.sqlite    |    Bin 16384 -> 16384 bytes
+ .../results-1000/ei-s42.json                       |      0
+ .../results-1000/ei-s42.json.ei.s42.state          |      0
+ .../results-1000/metrics.csv                       |      0
+ .../results-1000/pool-1000.csv                     |      0
+ .../results-1000/random-s42.json                   |      0
+ .../results-1000/random-s42.json.random.s42.state  |      0
+ .../results-1000/summary.csv                       |      0
+ .../results-100000/ei-s42.json                     |      0
+ .../results-100000/ei-s42.json.ei.s42.state        |      0
+ .../results-100000/metrics.csv                     |      0
+ .../results-100000/pool-100000.csv                 |      0
+ .../results-100000/random-s42.json                 |      0
+ .../random-s42.json.random.s42.state               |      0
+ .../results-100000/summary.csv                     |      0
+ .../working/synthetic-library-1000/library.json    |     46 +
+ .../synthetic-library-1000/molecules.sqlite        |    Bin 0 -> 16384 bytes
+ .../working/synthetic-library-100000/library.json  |     46 +
+ .../synthetic-library-100000/molecules.sqlite      |    Bin 0 -> 81920 bytes
+ .../GOLDEN_CANDIDATES.csv                          |     21 +
+ 03-OptimizedExperiment-Phase2/REPORT.md            |     14 +
+ .../results-100000/ei-s42.json                     | 201077 +++++++++++++++++
+ .../results-100000/ei-s42.json.ei.s42.state        | 201077 +++++++++++++++++
+ .../results-100000/ei-s43.json                     | 200582 +++++++++++++++++
+ .../results-100000/ei-s43.json.ei.s43.state        | 200582 +++++++++++++++++
+ .../results-100000/ei-s44.json                     | 200582 +++++++++++++++++
+ .../results-100000/ei-s44.json.ei.s44.state        | 200582 +++++++++++++++++
+ .../results-100000/ei-s45.json                     | 200650 +++++++++++++++++
+ .../results-100000/ei-s45.json.ei.s45.state        | 200650 +++++++++++++++++
+ .../results-100000/ei-s46.json                     | 200629 +++++++++++++++++
+ .../results-100000/ei-s46.json.ei.s46.state        | 200629 +++++++++++++++++
+ .../results-100000/greedy-s42.json                 | 200582 +++++++++++++++++
+ .../greedy-s42.json.greedy.s42.state               | 200582 +++++++++++++++++
+ .../results-100000/metrics.csv                     |     13 +
+ .../results-100000/pool-100000.csv                 | 100001 +++++++++
+ .../results-100000/random-s42.json                 | 201116 ++++++++++++++++++
+ .../random-s42.json.random.s42.state               | 201116 ++++++++++++++++++
+ .../results-100000/random-s43.json                 | 200629 +++++++++++++++++
+ .../random-s43.json.random.s43.state               | 200629 +++++++++++++++++
+ .../results-100000/random-s44.json                 | 200609 +++++++++++++++++
+ .../random-s44.json.random.s44.state               | 200609 +++++++++++++++++
+ .../results-100000/random-s45.json                 | 200625 +++++++++++++++++
+ .../random-s45.json.random.s45.state               | 200625 +++++++++++++++++
+ .../results-100000/random-s46.json                 | 200629 +++++++++++++++++
+ .../random-s46.json.random.s46.state               | 200629 +++++++++++++++++
+ .../results-100000/summary.csv                     |      7 +
+ .../results-100000/ucb-s42.json                    | 200582 +++++++++++++++++
+ .../results-100000/ucb-s42.json.ucb.s42.state      | 200582 +++++++++++++++++
+ .../working/synthetic-library-100000/library.json  |     46 +
+ .../synthetic-library-100000/molecules.sqlite      |    Bin 0 -> 81920 bytes
+ 04_sota_experiments-[future-work]/README.md        |    230 +
+ .../requirements-sota.txt                          |      8 +
+ 04_sota_experiments-[future-work]/run.sh           |     44 +
+ .../search_amortized.py                            |    211 +
+ 04_sota_experiments-[future-work]/search_gnn.py    |    331 +
+ 04_sota_experiments-[future-work]/search_mobo.py   |    269 +
+ 04_sota_experiments-[future-work]/search_rl.py     |    290 +
+ 04_sota_experiments-[future-work]/sota_utils.py    |    217 +
+ baseline.py => core/baseline.py                    |      0
+ chemistry.py => core/chemistry.py                  |      0
+ client.py => core/client.py                        |      0
+ generate_pool.py => core/generate_pool.py          |      0
+ local_eval.py => core/local_eval.py                |      0
+ .../make_synthetic_library.py                      |      0
+ metrics.py => core/metrics.py                      |      0
+ mock_service.py => core/mock_service.py            |      0
+ nim_oracle.py => core/nim_oracle.py                |      0
+ run_experiment.py => core/run_experiment.py        |      0
+ search.py => core/search.py                        |      0
+ search_nim.py => core/search_nim.py                |      0
+ make_nim_msa.py                                    |     67 -
+ make_nim_msa_gpu.py                                |     66 -
+ phase_1-2_results/phase2-seeds.csv                 |     12 -
+ 96 files changed, 4918379 insertions(+), 146 deletions(-)
+
+Commit: 4668681a17907d9ecd02c0c4f50a854a55add20c
+Author: hanyghazal79
+Date: 2026-10-21 23:04:34 +0300
+Subject: Ran 2 experiments on Phases 1-2
+
+ phase_1-2_results.zip                              |    Bin 24947 -> 0 bytes
+ .../{ => results-100}/search-ei-s43.json           |      0
+ .../search-ei-s43.json.ei.s43.state                |      0
+ .../{ => results-100}/search-ei-s44.json           |      0
+ .../search-ei-s44.json.ei.s44.state                |      0
+ .../{ => results-100}/search-ei-s45.json           |      0
+ .../search-ei-s45.json.ei.s45.state                |      0
+ .../{ => results-100}/search-ei-s46.json           |      0
+ .../search-ei-s46.json.ei.s46.state                |      0
+ .../{ => results-100}/search-greedy-s42.json       |      0
+ .../search-greedy-s42.json.greedy.s42.state        |      0
+ .../{ => results-100}/search-random-s42.json       |      0
+ .../search-random-s42.json.random.s42.state        |      0
+ .../{ => results-100}/search-random-s43.json       |      0
+ .../search-random-s43.json.random.s43.state        |      0
+ .../{ => results-100}/search-random-s44.json       |      0
+ .../search-random-s44.json.random.s44.state        |      0
+ .../{ => results-100}/search-random-s45.json       |      0
+ .../search-random-s45.json.random.s45.state        |      0
+ .../{ => results-100}/search-random-s46.json       |      0
+ .../search-random-s46.json.random.s46.state        |      0
+ .../{ => results-100}/search-ucb-s42.json          |      0
+ .../search-ucb-s42.json.ucb.s42.state              |      0
+ phase_1-2_results/results-1000/ei-s42.json         |   2144 +
+ .../results-1000/ei-s42.json.ei.s42.state          |   2144 +
+ phase_1-2_results/results-1000/metrics.csv         |      3 +
+ phase_1-2_results/results-1000/pool-1000.csv       |   1001 +
+ phase_1-2_results/results-1000/random-s42.json     |   2144 +
+ .../results-1000/random-s42.json.random.s42.state  |   2144 +
+ phase_1-2_results/results-1000/summary.csv         |      5 +
+ phase_1-2_results/results-100000/ei-s42.json       | 201077 +++++++++++++++++
+ .../results-100000/ei-s42.json.ei.s42.state        | 201077 +++++++++++++++++
+ phase_1-2_results/results-100000/metrics.csv       |      3 +
+ phase_1-2_results/results-100000/pool-100000.csv   | 100001 +++++++++
+ phase_1-2_results/results-100000/random-s42.json   | 201116 ++++++++++++++++++
+ .../random-s42.json.random.s42.state               | 201116 ++++++++++++++++++
+ phase_1-2_results/results-100000/summary.csv       |      5 +
+ 37 files changed, 913980 insertions(+)
+
+Commit: 81beead568044b37725cfbcbe4642c86283a39be
+Author: hanyghazal79
+Date: 2026-10-21 22:59:43 +0300
+Subject: Ran 2 experiments on Phases 1-2
+
+ generate_pool.py                                   |  86 ++++---
+ local_eval.py                                      |  17 +-
+ make_nim_msa_gpu.py                                |  66 ++++++
+ make_synthetic_library.py                          |  88 ++++---
+ metrics.py                                         |  34 +--
+ molecular-search.ipynb                             |   1 +
+ nim_oracle.py                                      |  49 ++--
+ phase_1-2_results.zip                              | Bin 0 -> 24947 bytes
+ phase_1-2_results/phase2-seeds.csv                 |  12 +
+ phase_1-2_results/search-ei-s43.json               | 262 +++++++++++++++++++++
+ phase_1-2_results/search-ei-s43.json.ei.s43.state  | 262 +++++++++++++++++++++
+ phase_1-2_results/search-ei-s44.json               | 262 +++++++++++++++++++++
+ phase_1-2_results/search-ei-s44.json.ei.s44.state  | 262 +++++++++++++++++++++
+ phase_1-2_results/search-ei-s45.json               | 262 +++++++++++++++++++++
+ phase_1-2_results/search-ei-s45.json.ei.s45.state  | 262 +++++++++++++++++++++
+ phase_1-2_results/search-ei-s46.json               | 262 +++++++++++++++++++++
+ phase_1-2_results/search-ei-s46.json.ei.s46.state  | 262 +++++++++++++++++++++
+ phase_1-2_results/search-greedy-s42.json           | 262 +++++++++++++++++++++
+ .../search-greedy-s42.json.greedy.s42.state        | 262 +++++++++++++++++++++
+ phase_1-2_results/search-random-s42.json           | 262 +++++++++++++++++++++
+ .../search-random-s42.json.random.s42.state        | 262 +++++++++++++++++++++
+ phase_1-2_results/search-random-s43.json           | 262 +++++++++++++++++++++
+ .../search-random-s43.json.random.s43.state        | 262 +++++++++++++++++++++
+ phase_1-2_results/search-random-s44.json           | 262 +++++++++++++++++++++
+ .../search-random-s44.json.random.s44.state        | 262 +++++++++++++++++++++
+ phase_1-2_results/search-random-s45.json           | 262 +++++++++++++++++++++
+ .../search-random-s45.json.random.s45.state        | 262 +++++++++++++++++++++
+ phase_1-2_results/search-random-s46.json           | 262 +++++++++++++++++++++
+ .../search-random-s46.json.random.s46.state        | 262 +++++++++++++++++++++
+ phase_1-2_results/search-ucb-s42.json              | 262 +++++++++++++++++++++
+ .../search-ucb-s42.json.ucb.s42.state              | 262 +++++++++++++++++++++
+ run_experiment.py                                  |  98 ++++++++
+ search_nim.py                                      | 207 ++++++++--------
+ 33 files changed, 6190 insertions(+), 232 deletions(-)
+
+Commit: 9dc8e6bc7d0fe9410e6d075b25f2479b8b791642
+Author: hanyghazal79
+Date: 2026-10-20 19:41:38 +0300
+Subject: chore: baseline candidate pool, pinned deps, gitignore runtime artifacts
+
+ .gitignore        |   6 +
+ pool-100.csv      | 101 +++++++++++
+ requirements.lock | 493 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 600 insertions(+)
+
+Commit: 6a243d5f73f8777f54567ab658aae39ac2fe90df
+Author: hanyghazal79
+Date: 2026-10-20 19:38:28 +0300
+Subject: merge: integrate remote initial commit (keep client starter-kit README)
+
+Commit: eb669be604f07a8b1ef613647fc79d724c19470c
+Author: hanyghazal79
+Date: 2026-10-20 19:28:18 +0300
+Subject: docs:Initial  Phase 1-3 optimization runbook and acceptance criteria - Not all ran yet..
+
+ README_OPTIMIZATION.md | 143 +++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 143 insertions(+)
+
+Commit: 2af99f77b666d5ebf5abc5daf4d0e6e844ebd711
+Author: hanyghazal79
+Date: 2026-10-20 19:26:54 +0300
+Subject: feat(test): offline protocol mock
+
+ mock_service.py | 150 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 150 insertions(+)
+
+Commit: e2cfa8d9e55206d213afc0ab9cf5facb83d3b7d5
+Author: hanyghazal79
+Date: 2026-10-20 19:26:29 +0300
+Subject: feat: checkpoint metrics and MSA generation helper
+
+ make_nim_msa.py |  67 +++++++++++++++++++++++
+ metrics.py      | 163 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 230 insertions(+)
+
+Commit: 29ea9225f863c762e2c1f3d2beccd995dc89fd97
+Author: hanyghazal79
+Date: 2026-10-20 19:25:58 +0300
+Subject: feat: surrogate-guided search (NIM now, service-ready)
+
+ search.py     | 245 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ search_nim.py | 225 +++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 470 insertions(+)
+
+Commit: ec9682dd0b3aeaaf7ef6471de88dafbc8a65edaf
+Author: hanyghazal79
+Date: 2026-10-20 19:25:33 +0300
+Subject: feat: local validate/final against frozen library filters
+
+ local_eval.py | 56 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 56 insertions(+)
+
+Commit: fbc84a4c63bcd44601759966c4aac855b20eb6f7
+Author: hanyghazal79
+Date: 2026-10-20 19:25:00 +0300
+Subject: feat: NVIDIA NIM Boltz-2 oracle with cache and rate limiting
+
+ nim_oracle.py | 113 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 113 insertions(+)
+
+Commit: d54e43a37e7dd8407d1527eaeee2eb50e092d1fe
+Author: hanyghazal79
+Date: 2026-10-20 19:24:26 +0300
+Subject: feat(test): synthetic amide-coupling library bundle
+
+ make_synthetic_library.py          |  85 +++++++++++++++++++++++++++++++++++++
+ synthetic-library/library.json     |  46 ++++++++++++++++++++
+ synthetic-library/molecules.sqlite | Bin 0 -> 16384 bytes
+ 3 files changed, 131 insertions(+)
+
+Commit: aa603388a2c13aeff64294f8c4c406665f148e8b
+Author: hanyghazal79
+Date: 2026-10-20 19:23:56 +0300
+Subject: chore: gitignore, env template
+
+ .env.example |  5 +++++
+ .gitignore   | 12 ++++++++++++
+ 2 files changed, 17 insertions(+)
+
+Commit: 2b2494b07b3d9238b984672a82d1e0c675481d9c
+Author: hanyghazal79
+Date: 2026-10-20 19:23:11 +0300
+Subject: chore: import client starter kit verbatim
+
+ README.md                           | 213 ++++++++++++++++++++
+ baseline.py                         | 222 ++++++++++++++++++++
+ chemistry.py                        | 392 ++++++++++++++++++++++++++++++++++++
+ client.py                           | 113 +++++++++++
+ examples/demo_pool.csv              |  13 ++
+ examples/request.json               |   4 +
+ generate_pool.py                    |  72 +++++++
+ requirements-optional-chemistry.txt |   2 +
+ 8 files changed, 1031 insertions(+)
+
+Commit: d60c4b68047bbe1d3f29c6000b83deefd80138af
+Author: endlessbiz
+Date: 2026-10-20 09:11:00 -0400
+Subject: Initial commit
+
+ README.md | 1 +
+ 1 file changed, 1 insertion(+)
